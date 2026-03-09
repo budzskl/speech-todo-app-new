@@ -51,10 +51,16 @@ export default function TodoPage() {
         recognition.onend = () => setIsListening(false);
         recognition.onerror = (e) => setError(`Mic error: ${e.error}`);
 
+        recognition.interimResults = true;
+
         recognition.onresult = (e) => {
-            const transcript = e.results[0][0].transcript;
+            const transcript = Array.from(e.results)
+                .map(r => r[0].transcript)
+                .join("");
             setInputText(transcript);
-            sendMessage(transcript);
+            if (e.results[e.results.length - 1].isFinal) {
+                sendMessage(transcript);
+            }
         };
 
         recognition.start();
@@ -223,7 +229,7 @@ export default function TodoPage() {
                                             fontWeight: "500",
                                             border: "1px solid #c7d2fe"
                                         }}>
-                                            📅 {new Date(todo.date).toLocaleDateString()}
+                                            {new Date(todo.date).toLocaleDateString()}
                                         </span>
                                     )}
                                 </li>
