@@ -14,7 +14,7 @@ app = Flask(__name__)
 CORS(app)
 
 PROJECT_ID = "todo-bot-cjcw"
-tts_audio = None  # stores latest TTS audio bytes
+tts_audio = None
 
 
 def extract_date(param):
@@ -68,7 +68,13 @@ def process_intent(intent, params, result, conn):
             conn.execute("UPDATE tasks SET date = ? WHERE title LIKE ?", (new_date, f"%{task_name}%"))
             reply = f"Updated {task_name}'s date to {new_date}"
     elif intent == "organize_task":
-        todos = [dict(t) for t in conn.execute("SELECT * FROM tasks ORDER BY date ASC").fetchall()]
+        target_date = extract_date(params.get("date", "")) or datetime.now().strftime("%B %d, %Y")
+        todos = [dict(t) for t in conn.execute("SELECT * FROM tasks WHERE date = ?", (target_date,)).fetchall()]
+        if todos:
+            names = ", ".join(t["title"] for t in todos)
+            reply = f"You have {len(todos)} task{'s' if len(todos) != 1 else ''} on {target_date}: {names}."
+        else:
+            reply = f"No tasks on {target_date}."
         return reply, todos
 
     todos = [dict(t) for t in conn.execute("SELECT * FROM tasks").fetchall()]
@@ -104,47 +110,3 @@ def message():
         return jsonify({"intent": intent, "reply": reply, "todos": todos})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-@app.route("/audio", methods=["POST"])
-def audio_message():
-    global tts_audio
-    try:
-        session = df_client.session_path(PROJECT_ID, "session-1")
-
-        response = df_client.detect_intent(
-            session=session,
-            query_input=dialogflow.QueryInput(
-                audio_config=dialogflow.InputAudioConfig(
-                    audio_encoding=dialogflow.AudioEncoding.AUDIO_ENCODING_OGG_OPUS,
-                    sample_rate_hertz=48000,
-                    language_code="en-US"
-                )
-            ),
-            input_audio=request.data,
-            output_audio_config=dialogflow.OutputAudioConfig(
-                audio_encoding=dialogflow.OutputAudioEncoding.OUTPUT_AUDIO_ENCODING_MP3
-            )
-        )
-
-        result = response.query_result
-        tts_audio = response.output_audio
-
-        with get_db() as conn:
-            reply, todos = process_intent(result.intent.display_name, dict(result.parameters), result, conn)
-
-        return jsonify({
-            "reply": reply,
-            "todos": todos,
-            "transcript": result.query_text,
-            "has_audio": bool(tts_audio)
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/audio/tts", methods=["GET"])
-def get_tts():
-    if not tts_audio:
-        return "", 204
-    return Response(tts_audio, mimetype="audio/mp3")

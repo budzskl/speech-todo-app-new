@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import Calendar from "react-calendar";
-import "react-calendar/dist/Calendar.css";
 
 export default function TodoPage() {
     const [todos, setTodos] = useState([]);
@@ -77,7 +76,7 @@ export default function TodoPage() {
                 textAlign: "center",
                 boxShadow: "0 4px 12px rgba(79, 70, 229, 0.15)"
             }}>
-                <h1 style={{ margin: "0 0 8px 0", fontSize: "32px", fontWeight: "700", letterSpacing: "-0.5px" }}>🎙️ Speech To-Do</h1>
+                <h1 style={{ margin: "0 0 8px 0", fontSize: "32px", fontWeight: "700", letterSpacing: "-0.5px" }}> Speech To-Do</h1>
             </div>
 
             {/* Main Container */}
@@ -165,7 +164,7 @@ export default function TodoPage() {
                         />
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", paddingTop: "16px", borderTop: "1px solid #e5e7eb" }}>
-                        <h3 style={{ margin: "0", color: "#1f2937", fontSize: "18px", fontWeight: "600" }}>📋 All Tasks</h3>
+                        <h3 style={{ margin: "0", color: "#1f2937", fontSize: "18px", fontWeight: "600" }}> All Tasks</h3>
                         <button 
                             onClick={clearTodos} 
                             style={{ 
