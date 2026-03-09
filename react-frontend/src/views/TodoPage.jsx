@@ -8,7 +8,7 @@ export default function TodoPage() {
     const [isListening, setIsListening] = useState(false);
 
     useEffect(() => {
-        fetch("http://localhost:5001/todos")
+        fetch("http://localhost:5000/todos")
             .then(res => res.json())
             .then(data => setTodos(data));
     }, []);
@@ -16,7 +16,7 @@ export default function TodoPage() {
     const sendMessage = async (text) => {
         setError("");
         try {
-            const res = await fetch("http://localhost:5001/message", {
+            const res = await fetch("http://localhost:5000/message", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ text })
@@ -36,7 +36,7 @@ export default function TodoPage() {
     };
 
     const clearTodos = async () => {
-        const res = await fetch("http://localhost:5001/todos", { method: "DELETE" });
+        const res = await fetch("http://localhost:5000/todos", { method: "DELETE" });
         if (res.ok) {
             setTodos([]);
             setReply("");
@@ -67,7 +67,7 @@ export default function TodoPage() {
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && sendMessage(inputText)}
-                    placeholder="Type a command..."
+                    placeholder="Speech Input..."
                     style={{ flex: 1, padding: "8px 12px", fontSize: 16 }}
                 />
                 <button onClick={() => sendMessage(inputText)}>Send</button>

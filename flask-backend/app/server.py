@@ -18,6 +18,8 @@ PROJECT_ID = "todo-bot-cjcw"
 
 def extract_date(param):
     """Return a formatted date string from a Dialogflow date param, or None."""
+    if not param:
+        return None
     if hasattr(param, "get"):
         raw = next(
             (str(param.get(k)).strip() for k in ("date_time", "startDateTime", "startDate") if param.get(k)),
@@ -82,10 +84,10 @@ def message():
                 if task_name:
                     if new_name and new_date:
                         conn.execute("UPDATE tasks SET title = ?, date = ? WHERE title LIKE ?", (new_name, new_date, f"%{task_name}%"))
-                        reply = f"Updated: {task_name} → {new_name} on {new_date}"
+                        reply = f"Updated: {task_name} to {new_name} on {new_date}"
                     elif new_name:
                         conn.execute("UPDATE tasks SET title = ? WHERE title LIKE ?", (new_name, f"%{task_name}%"))
-                        reply = f"Updated: {task_name} → {new_name}"
+                        reply = f"Updated: {task_name} to {new_name}"
                     elif new_date:
                         conn.execute("UPDATE tasks SET date = ? WHERE title LIKE ?", (new_date, f"%{task_name}%"))
                         reply = f"Updated {task_name}'s date to {new_date}"
