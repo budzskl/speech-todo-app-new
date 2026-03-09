@@ -1,12 +1,16 @@
 import { useState, useEffect } from "react";
+import Calendar from "react-calendar";
+import "react-calendar/dist/Calendar.css";
 
 export default function TodoPage() {
     const [todos, setTodos] = useState([]);
     const [inputText, setInputText] = useState("");
-    const [reply, setReply] = useState("");
     const [error, setError] = useState("");
     const [isListening, setIsListening] = useState(false);
     const [currentDate, setCurrentDate] = useState(new Date());
+
+    const getTasksForDate = (date) =>
+        todos.filter(todo => todo.date && new Date(todo.date).toDateString() === date.toDateString());
 
     useEffect(() => {
         fetch("http://127.0.0.1:5000/todos")
@@ -28,158 +32,40 @@ export default function TodoPage() {
                 return;
             }
             const data = await res.json();
-            setReply(data.reply);
             setTodos(data.todos);
             setInputText("");
+            window.speechSynthesis.speak(new SpeechSynthesisUtterance(data.reply));
         } catch (e) {
             setError(`Failed to reach server: ${e.message}`);
         }
     };
 
-    const clearTodos = async () => {
-        const res = await fetch("http://127.0.0.1:5000/todos", { method: "DELETE" });
-        if (res.ok) {
-            setTodos([]);
-            setReply("");
-        }
-    };
-
     const startListening = () => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) { setError("Speech recognition not supported in this browser"); return; }
+
         const recognition = new SpeechRecognition();
         recognition.lang = "en-US";
+        recognition.continuous = false;
+
         recognition.onstart = () => setIsListening(true);
         recognition.onend = () => setIsListening(false);
+        recognition.onerror = (e) => setError(`Mic error: ${e.error}`);
+
         recognition.onresult = (e) => {
-            const text = e.results[0][0].transcript;
-            setInputText(text);
-            sendMessage(text);
+            const transcript = e.results[0][0].transcript;
+            setInputText(transcript);
+            sendMessage(transcript);
         };
+
         recognition.start();
     };
 
-    const getDaysInMonth = (date) => {
-        return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+    const clearTodos = async () => {
+        const res = await fetch("http://127.0.0.1:5000/todos", { method: "DELETE" });
+        if (res.ok) setTodos([]);
     };
 
-    const getFirstDayOfMonth = (date) => {
-        return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
-    };
-
-    const getTasksForDate = (date) => {
-        return todos.filter(todo => {
-            if (!todo.date) return false;
-            const todoDate = new Date(todo.date).toDateString();
-            return todoDate === date.toDateString();
-        });
-    };
-
-    const previousMonth = () => {
-        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
-    };
-
-    const nextMonth = () => {
-        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
-    };
-
-    const renderCalendar = () => {
-        const daysInMonth = getDaysInMonth(currentDate);
-        const firstDay = getFirstDayOfMonth(currentDate);
-        const days = [];
-        const monthNames = ["January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December"];
-
-        // Empty cells for days before month starts
-        for (let i = 0; i < firstDay; i++) {
-            days.push(<div key={`empty-${i}`} style={{ aspect: "1", background: "transparent" }}></div>);
-        }
-
-        // Days of month
-        for (let day = 1; day <= daysInMonth; day++) {
-            const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-            const tasksForDay = getTasksForDate(date);
-            const isToday = date.toDateString() === new Date().toDateString();
-
-            days.push(
-                <div
-                    key={day}
-                    style={{
-                        aspect: "1",
-                        border: isToday ? "2px solid #6366f1" : "1px solid #e5e7eb",
-                        padding: "8px",
-                        background: isToday ? "#eef2ff" : "white",
-                        borderRadius: "8px",
-                        fontSize: "13px",
-                        overflow: "hidden",
-                        cursor: "pointer",
-                        display: "flex",
-                        flexDirection: "column",
-                        transition: "all 0.2s ease",
-                        boxShadow: isToday ? "0 2px 4px rgba(99, 102, 241, 0.2)" : "0 1px 2px rgba(0, 0, 0, 0.05)",
-                        fontWeight: isToday ? "600" : "500",
-                        color: isToday ? "#4f46e5" : "#1f2937"
-                    }}
-                >
-                    <strong style={{ fontSize: "14px", marginBottom: "4px" }}>{day}</strong>
-                    <div style={{ fontSize: "11px", color: "#6b7280", overflow: "hidden" }}>
-                        {tasksForDay.length > 0 && (
-                            <span style={{ background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)", color: "white", padding: "2px 6px", borderRadius: "4px", display: "block", fontSize: "10px", fontWeight: "600" }}>
-                                {tasksForDay.length} task{tasksForDay.length > 1 ? 's' : ''}
-                            </span>
-                        )}
-                    </div>
-                </div>
-            );
-        }
-
-        return (
-            <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", gap: "12px" }}>
-                    <button 
-                        onClick={previousMonth} 
-                        style={{ 
-                            background: "#f3f4f6", 
-                            color: "#4f46e5",
-                            border: "none", 
-                            padding: "8px 12px", 
-                            cursor: "pointer", 
-                            borderRadius: "6px",
-                            fontSize: "18px",
-                            fontWeight: "600",
-                            transition: "all 0.2s ease"
-                        }}>←</button>
-                    <h2 style={{ margin: "0", color: "#1f2937", fontSize: "20px", fontWeight: "600" }}>{monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</h2>
-                    <button 
-                        onClick={nextMonth} 
-                        style={{ 
-                            background: "#f3f4f6", 
-                            color: "#4f46e5",
-                            border: "none", 
-                            padding: "8px 12px", 
-                            cursor: "pointer", 
-                            borderRadius: "6px",
-                            fontSize: "18px",
-                            fontWeight: "600",
-                            transition: "all 0.2s ease"
-                        }}>→</button>
-                </div>
-                <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(7, 1fr)",
-                    gap: "8px",
-                    marginBottom: "24px",
-                    backgroundColor: "#f9fafb",
-                    padding: "12px",
-                    borderRadius: "8px"
-                }}>
-                    {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
-                        <div key={d} style={{ fontWeight: "700", textAlign: "center", padding: "8px 0", color: "#4f46e5", fontSize: "12px" }}>{d}</div>
-                    ))}
-                    {days}
-                </div>
-            </div>
-        );
-    };
 
     return (
         <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #f3f4f6 0%, #ffffff 100%)", fontFamily: "'-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif" }}>
@@ -192,11 +78,10 @@ export default function TodoPage() {
                 boxShadow: "0 4px 12px rgba(79, 70, 229, 0.15)"
             }}>
                 <h1 style={{ margin: "0 0 8px 0", fontSize: "32px", fontWeight: "700", letterSpacing: "-0.5px" }}>🎙️ Speech To-Do</h1>
-                <p style={{ margin: "0", fontSize: "14px", opacity: "0.9" }}>Organize your tasks with voice</p>
             </div>
 
             {/* Main Container */}
-            <div style={{ maxWidth: "700px", margin: "0 auto", padding: "24px 20px" }}>
+            <div style={{ maxWidth: "900px", margin: "0 auto", padding: "24px 20px" }}>
                 {/* Input Area */}
                 <div style={{ 
                     background: "white", 
@@ -225,14 +110,14 @@ export default function TodoPage() {
                             onFocus={(e) => e.target.style.borderColor = "#4f46e5"}
                             onBlur={(e) => e.target.style.borderColor = "#e5e7eb"}
                         />
-                        <button 
+                        <button
                             onClick={() => sendMessage(inputText)}
-                            style={{ 
-                                padding: "12px 20px", 
+                            style={{
+                                padding: "12px 20px",
                                 background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
-                                color: "white", 
-                                border: "none", 
-                                cursor: "pointer", 
+                                color: "white",
+                                border: "none",
+                                cursor: "pointer",
                                 borderRadius: "8px",
                                 fontWeight: "600",
                                 fontSize: "14px",
@@ -242,20 +127,20 @@ export default function TodoPage() {
                         >
                             Send
                         </button>
-                        <button 
-                            onClick={startListening} 
-                            style={{ 
-                                background: isListening ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" : "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)", 
-                                color: "white", 
-                                border: "none", 
-                                padding: "12px 20px", 
-                                cursor: "pointer", 
+                        <button
+                            onClick={startListening}
+                            style={{
+                                background: isListening ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" : "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+                                color: "white",
+                                border: "none",
+                                padding: "12px 20px",
+                                cursor: "pointer",
                                 borderRadius: "8px",
-                                display: "flex", 
+                                display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
                                 transition: "all 0.2s ease",
-                                boxShadow: isListening ? "0 2px 4px rgba(239, 68, 68, 0.2)" : "0 2px 4px rgba(99, 102, 241, 0.2)"
+                                boxShadow: "0 2px 4px rgba(99, 102, 241, 0.2)"
                             }}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="white">
@@ -264,14 +149,21 @@ export default function TodoPage() {
                         </button>
                     </div>
 
-                    {/* Messages */}
-                    {reply && <p style={{ margin: "12px 0 0 0", padding: "10px 12px", background: "linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)", color: "#047857", borderRadius: "6px", fontSize: "14px", fontWeight: "500", border: "1px solid #34d399" }}>✓ {reply}</p>}
                     {error && <p style={{ margin: "12px 0 0 0", padding: "10px 12px", background: "linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)", color: "#dc2626", borderRadius: "6px", fontSize: "14px", fontWeight: "500", border: "1px solid #f87171" }}>✕ {error}</p>}
                 </div>
 
                 {/* Calendar Content */}
                 <div style={{ background: "white", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)", padding: "24px", marginBottom: "24px" }}>
-                    {renderCalendar()}
+                    <div style={{ margin: "0 -24px" }}>
+                        <Calendar
+                            value={currentDate}
+                            onChange={setCurrentDate}
+                            tileContent={({ date }) => {
+                                const count = getTasksForDate(date).length;
+                                return count > 0 ? <div style={{ fontSize: "10px", color: "#6366f1", fontWeight: "600" }}>{count} task{count > 1 ? "s" : ""}</div> : null;
+                            }}
+                        />
+                    </div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", paddingTop: "16px", borderTop: "1px solid #e5e7eb" }}>
                         <h3 style={{ margin: "0", color: "#1f2937", fontSize: "18px", fontWeight: "600" }}>📋 All Tasks</h3>
                         <button 

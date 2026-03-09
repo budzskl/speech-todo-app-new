@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from google.cloud import dialogflow
 from datetime import datetime
@@ -14,10 +14,10 @@ app = Flask(__name__)
 CORS(app)
 
 PROJECT_ID = "todo-bot-cjcw"
+tts_audio = None  # stores latest TTS audio bytes
 
 
 def extract_date(param):
-    """Return a formatted date string from a Dialogflow date param, or None."""
     if not param:
         return None
     if hasattr(param, "get"):
@@ -45,6 +45,36 @@ def get_db():
         conn.close()
 
 
+def process_intent(intent, params, result, conn):
+    reply = result.fulfillment_text or f"[intent: {intent}]"
+
+    if intent == "create_task":
+        if result.all_required_params_present:
+            title = str(params.get("title", "")).strip()
+            date_val = extract_date(params.get("date", ""))
+            if title:
+                conn.execute("INSERT INTO tasks (title, date) VALUES (?, ?)", (title, date_val))
+                reply = f"Added: {title}" + (f" on {date_val}" if date_val else "")
+    elif intent == "edit_task_name":
+        task_name = str(params.get("task_name", "")).strip()
+        new_name = str(params.get("new_name", "")).strip()
+        if task_name and new_name:
+            conn.execute("UPDATE tasks SET title = ? WHERE title LIKE ?", (new_name, f"%{task_name}%"))
+            reply = f"Renamed {task_name} to {new_name}"
+    elif intent == "edit_task_date":
+        task_name = str(params.get("task_name", "")).strip()
+        new_date = extract_date(params.get("date_time", ""))
+        if task_name and new_date:
+            conn.execute("UPDATE tasks SET date = ? WHERE title LIKE ?", (new_date, f"%{task_name}%"))
+            reply = f"Updated {task_name}'s date to {new_date}"
+    elif intent == "organize_task":
+        todos = [dict(t) for t in conn.execute("SELECT * FROM tasks ORDER BY date ASC").fetchall()]
+        return reply, todos
+
+    todos = [dict(t) for t in conn.execute("SELECT * FROM tasks").fetchall()]
+    return reply, todos
+
+
 @app.route("/todos", methods=["GET"])
 def get_todos():
     with get_db() as conn:
@@ -61,37 +91,60 @@ def clear_todos():
 @app.route("/message", methods=["POST"])
 def message():
     try:
-        text = request.json["text"].lower().strip()
-        reply = "I didn't understand that."
-        intent = "unknown"
+        text = request.json["text"]
+        session = df_client.session_path(PROJECT_ID, "session-1")
+        query = dialogflow.QueryInput(text=dialogflow.TextInput(text=text, language_code="en"))
+        result = df_client.detect_intent(session=session, query_input=query).query_result
+        intent = result.intent.display_name
+        params = dict(result.parameters)
 
         with get_db() as conn:
-            if text.startswith("add "):
-                title = text[4:].strip()
-                if title:
-                    conn.execute("INSERT INTO tasks (title) VALUES (?)", (title,))
-                    reply = f"Added: {title}"
-                    intent = "create_task"
-            elif text.startswith("edit "):
-                # Simple edit: assume "edit old to new"
-                parts = text[5:].split(" to ")
-                if len(parts) == 2:
-                    old_name = parts[0].strip()
-                    new_name = parts[1].strip()
-                    conn.execute("UPDATE tasks SET title = ? WHERE title LIKE ?", (new_name, f"%{old_name}%"))
-                    reply = f"Updated: {old_name} to {new_name}"
-                    intent = "edit_task"
-            elif "clear" in text or "delete all" in text:
-                conn.execute("DELETE FROM tasks")
-                reply = "All tasks cleared."
-                intent = "clear_tasks"
-            elif "list" in text or "show" in text:
-                reply = "Here are your tasks."
-                intent = "list_tasks"
-
-            todos = [dict(t) for t in conn.execute("SELECT * FROM tasks").fetchall()]
+            reply, todos = process_intent(intent, params, result, conn)
 
         return jsonify({"intent": intent, "reply": reply, "todos": todos})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+@app.route("/audio", methods=["POST"])
+def audio_message():
+    global tts_audio
+    try:
+        session = df_client.session_path(PROJECT_ID, "session-1")
+
+        response = df_client.detect_intent(
+            session=session,
+            query_input=dialogflow.QueryInput(
+                audio_config=dialogflow.InputAudioConfig(
+                    audio_encoding=dialogflow.AudioEncoding.AUDIO_ENCODING_OGG_OPUS,
+                    sample_rate_hertz=48000,
+                    language_code="en-US"
+                )
+            ),
+            input_audio=request.data,
+            output_audio_config=dialogflow.OutputAudioConfig(
+                audio_encoding=dialogflow.OutputAudioEncoding.OUTPUT_AUDIO_ENCODING_MP3
+            )
+        )
+
+        result = response.query_result
+        tts_audio = response.output_audio
+
+        with get_db() as conn:
+            reply, todos = process_intent(result.intent.display_name, dict(result.parameters), result, conn)
+
+        return jsonify({
+            "reply": reply,
+            "todos": todos,
+            "transcript": result.query_text,
+            "has_audio": bool(tts_audio)
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/audio/tts", methods=["GET"])
+def get_tts():
+    if not tts_audio:
+        return "", 204
+    return Response(tts_audio, mimetype="audio/mp3")
