@@ -4,7 +4,6 @@ import Calendar from "react-calendar";
 export default function TodoPage() {
     const [todos, setTodos] = useState([]);
     const [inputText, setInputText] = useState("");
-    const [error, setError] = useState("");
     const [isListening, setIsListening] = useState(false);
     const [currentDate, setCurrentDate] = useState(new Date());
 
@@ -18,30 +17,25 @@ export default function TodoPage() {
     }, []);
 
     const sendMessage = async (text) => {
-        setError("");
         try {
             const res = await fetch("http://127.0.0.1:5000/message", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ text })
             });
-            if (!res.ok) {
-                const err = await res.text();
-                setError(`Server error ${res.status}: ${err}`);
-                return;
-            }
+            if (!res.ok) return;
             const data = await res.json();
             setTodos(data.todos);
             setInputText("");
             window.speechSynthesis.speak(new SpeechSynthesisUtterance(data.reply));
         } catch (e) {
-            setError(`Failed to reach server: ${e.message}`);
+            console.error(e);
         }
     };
 
     const startListening = () => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) { setError("Speech recognition not supported in this browser"); return; }
+        if (!SpeechRecognition) return;
 
         const recognition = new SpeechRecognition();
         recognition.lang = "en-US";
@@ -49,7 +43,7 @@ export default function TodoPage() {
 
         recognition.onstart = () => setIsListening(true);
         recognition.onend = () => setIsListening(false);
-        recognition.onerror = (e) => setError(`Mic error: ${e.error}`);
+        recognition.onerror = (e) => console.error(`Mic error: ${e.error}`);
 
         recognition.interimResults = true;
 
@@ -153,8 +147,6 @@ export default function TodoPage() {
                             </svg>
                         </button>
                     </div>
-
-                    {error && <p style={{ margin: "12px 0 0 0", padding: "10px 12px", background: "linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)", color: "#dc2626", borderRadius: "6px", fontSize: "14px", fontWeight: "500", border: "1px solid #f87171" }}>✕ {error}</p>}
                 </div>
 
                 {/* Calendar Content */}
@@ -192,7 +184,7 @@ export default function TodoPage() {
 
                     {/* Task List */}
                     {todos.length === 0 ? (
-                        <p style={{ textAlign: "center", color: "#9ca3af", padding: "40px 0", fontSize: "16px", fontWeight: "500" }}>🎯 No tasks yet. Create one using voice or text!</p>
+                        <p style={{ textAlign: "center", color: "#9ca3af", padding: "40px 0", fontSize: "16px", fontWeight: "500" }}></p>
                     ) : (
                         <ul style={{ listStyle: "none", padding: "0", margin: "0" }}>
                             {todos.map((todo, index) => (

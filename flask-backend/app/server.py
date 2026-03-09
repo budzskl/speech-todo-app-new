@@ -68,7 +68,7 @@ def process_intent(intent, params, result, conn):
             conn.execute("UPDATE tasks SET date = ? WHERE title LIKE ?", (new_date, f"%{task_name}%"))
             reply = f"Updated {task_name}'s date to {new_date}"
     elif intent == "organize_task":
-        target_date = extract_date(params.get("date", "")) or datetime.now().strftime("%B %d, %Y")
+        target_date = extract_date(params.get("date-time", "")) or datetime.now().strftime("%B %d, %Y")
         todos = [dict(t) for t in conn.execute("SELECT * FROM tasks WHERE date = ?", (target_date,)).fetchall()]
         if todos:
             names = ", ".join(t["title"] for t in todos)
