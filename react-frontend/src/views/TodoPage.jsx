@@ -7,8 +7,6 @@ export default function TodoPage() {
     const [inputText, setInputText] = useState("");
     const [isListening, setIsListening] = useState(false);
     const [selectedDate, setSelectedDate] = useState(new Date());
-    const [reply, setReply] = useState("");
-    const [error, setError] = useState("");
 
     useEffect(() => {
         fetch("http://127.0.0.1:5000/todos")
@@ -23,16 +21,13 @@ export default function TodoPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ text })
             });
-            if (!res.ok) { setError("Server error"); return; }
+            if (!res.ok) return;
             const data = await res.json();
             setTodos(data.todos);
             setInputText("");
-            setReply(data.reply);
-            setError("");
             window.speechSynthesis.speak(new SpeechSynthesisUtterance(data.reply));
         } catch (e) {
             console.error(e);
-            setError("Connection failed");
         }
     };
 
@@ -105,7 +100,7 @@ export default function TodoPage() {
                     border: "2px solid #1d4ed8", boxShadow: "0 0 20px rgba(59, 130, 246, 0.25), 4px 4px 0px #1d4ed8",
                     marginBottom: "20px",
                 }}>
-                    <div style={{ display: "flex", gap: "10px", marginBottom: "12px" }}>
+                    <div style={{ display: "flex", gap: "10px" }}>
                         <input
                             type="text"
                             value={inputText}
@@ -139,8 +134,6 @@ export default function TodoPage() {
                             </svg>
                         </button>
                     </div>
-                    {reply && <p style={{ margin: "10px 0 0 0", padding: "9px 12px", background: "#052010", color: "#4ade80", borderRadius: "3px", fontSize: "13px", fontWeight: "700", border: "2px solid #16a34a", fontFamily: "'Courier New', Courier, monospace", letterSpacing: "1px", boxShadow: "0 0 10px rgba(74,222,128,0.25)" }}>✓ {reply}</p>}
-                    {error && <p style={{ margin: "10px 0 0 0", padding: "9px 12px", background: "#1a0505", color: "#f87171", borderRadius: "3px", fontSize: "13px", fontWeight: "700", border: "2px solid #dc2626", fontFamily: "'Courier New', Courier, monospace", letterSpacing: "1px", boxShadow: "0 0 10px rgba(220,38,38,0.3)" }}>✕ {error}</p>}
                 </div>
 
                 {/* Calendar + Tasks Panel */}
