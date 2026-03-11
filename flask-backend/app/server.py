@@ -67,12 +67,12 @@ def process_intent(intent, params, result, conn):
         if task_name and new_date:
             conn.execute("UPDATE tasks SET date = ? WHERE title LIKE ?", (new_date, f"%{task_name}%"))
             reply = f"Updated {task_name}'s date to {new_date}"
+
     elif intent == "organize_task":
         date_time = params.get("date-time", "")
         date_period = params.get("date-period", "")
 
         if date_period and hasattr(date_period, "get"):
-            # Handle ranges like "this week", "next month"
             start = date_period.get("startDate") or date_period.get("startDateTime", "")
             end = date_period.get("endDate") or date_period.get("endDateTime", "")
             start_dt = datetime.fromisoformat(str(start)[:10]) if start else None
@@ -106,6 +106,12 @@ def process_intent(intent, params, result, conn):
 
         else:
             reply = "What date or time range would you like to organize by?"
+
+            todos_all = [dict(t) for t in conn.execute("SELECT * FROM tasks").fetchall()]
+            return reply, todos_all
+
+    else:
+        reply = "What date or time range would you like to organize by?"
 
     todos_all = [dict(t) for t in conn.execute("SELECT * FROM tasks").fetchall()]
     return reply, todos_all
