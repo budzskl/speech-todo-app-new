@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 from google.cloud import dialogflow
 from datetime import datetime
@@ -14,10 +14,14 @@ app = Flask(__name__)
 CORS(app)
 
 PROJECT_ID = "todo-bot-cjcw"
-tts_audio = None
 
 
 def extract_date(param):
+    if not param:
+        return None
+    if hasattr(param, "__iter__") and not isinstance(param, (str, bytes)) and not hasattr(param, "get"):
+        items = list(param)
+        param = items[0] if items else None
     if not param:
         return None
     if hasattr(param, "get"):
@@ -45,25 +49,33 @@ def get_db():
         conn.close()
 
 
+def get_param(params, key):
+    val = params.get(key, "")
+    if hasattr(val, "__iter__") and not isinstance(val, str):
+        items = list(val)
+        val = items[0] if items else ""
+    return str(val).strip()
+
+
 def process_intent(intent, params, result, conn):
     reply = result.fulfillment_text or f"[intent: {intent}]"
 
     if intent == "create_task":
         if result.all_required_params_present:
-            title = str(params.get("title", "")).strip()
+            title = get_param(params, "title")
             date_val = extract_date(params.get("date", ""))
             if title:
                 conn.execute("INSERT INTO tasks (title, date) VALUES (?, ?)", (title, date_val))
                 reply = f"Added: {title}" + (f" on {date_val}" if date_val else "")
     elif intent == "edit_task_name":
-        task_name = str(params.get("task_name", "")).strip()
-        new_name = str(params.get("new_name", "")).strip()
+        task_name = get_param(params, "task_name")
+        new_name = get_param(params, "new_name")
         if task_name and new_name:
             conn.execute("UPDATE tasks SET title = ? WHERE title LIKE ?", (new_name, f"%{task_name}%"))
             reply = f"Renamed {task_name} to {new_name}"
     elif intent == "edit_task_date":
-        task_name = str(params.get("task_name", "")).strip()
-        new_date = extract_date(params.get("date_time", ""))
+        task_name = get_param(params, "task-name")
+        new_date = extract_date(params.get("date-time", ""))
         if task_name and new_date:
             conn.execute("UPDATE tasks SET date = ? WHERE title LIKE ?", (new_date, f"%{task_name}%"))
             reply = f"Updated {task_name}'s date to {new_date}"
