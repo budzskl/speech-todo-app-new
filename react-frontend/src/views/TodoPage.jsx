@@ -260,7 +260,6 @@ export default function TodoPage() {
                                     borderLeft: "3px solid #dc2626",
                                 }}>
                                     <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                                        <input type="checkbox" style={{ cursor: "pointer", accentColor: "#dc2626" }} />
                                         <span style={{ fontSize: "13px", color: "#e2e8f0" }}>{todo.title}</span>
                                     </div>
                                     {todo.date && (

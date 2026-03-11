@@ -83,44 +83,34 @@ def process_intent(intent, params, result, conn):
             reply = f"Updated {task_name}'s date to {new_date}"
 
     elif intent == "organize_task":
-        date_time = params.get("date-time", "")
         date_period = params.get("date-period", "")
+        date_time = params.get("date-time", "")
 
         if date_period and hasattr(date_period, "get"):
             start = date_period.get("startDate") or date_period.get("startDateTime", "")
             end = date_period.get("endDate") or date_period.get("endDateTime", "")
             start_dt = datetime.fromisoformat(str(start)[:10]) if start else None
             end_dt = datetime.fromisoformat(str(end)[:10]) if end else None
-
             if start_dt and end_dt:
                 all_tasks = [dict(t) for t in conn.execute("SELECT * FROM tasks WHERE date IS NOT NULL").fetchall()]
-                todos = [
-                    t for t in all_tasks
-                    if start_dt <= datetime.strptime(t["date"], "%B %d, %Y") <= end_dt
-                ]
+                in_range = [t for t in all_tasks if start_dt <= datetime.strptime(t["date"], "%B %d, %Y") <= end_dt]
                 label = f"{start_dt.strftime('%B %d')} to {end_dt.strftime('%B %d, %Y')}"
-                if todos:
-                    names = ", ".join(t["title"] for t in todos)
-                    reply = f"You have {len(todos)} task{'s' if len(todos) != 1 else ''} from {label}: {names}."
-                else:
-                    reply = f"No tasks from {label}."
-                return reply, todos
-
+                reply = (
+                    f"You have {len(in_range)} task{'s' if len(in_range) != 1 else ''} from {label}: {', '.join(t['title'] for t in in_range)}."
+                    if in_range else f"No tasks from {label}."
+                )
         elif date_time:
             target_date = extract_date(date_time) or datetime.now().strftime("%B %d, %Y")
-            todos = [dict(t) for t in conn.execute("SELECT * FROM tasks WHERE date = ?", (target_date,)).fetchall()]
-            if todos:
-                names = ", ".join(t["title"] for t in todos)
-                reply = f"You have {len(todos)} task{'s' if len(todos) != 1 else ''} on {target_date}: {names}."
-            else:
-                reply = f"No tasks on {target_date}."
-            return reply, todos
-
+            on_date = [dict(t) for t in conn.execute("SELECT * FROM tasks WHERE date = ?", (target_date,)).fetchall()]
+            reply = (
+                f"You have {len(on_date)} task{'s' if len(on_date) != 1 else ''} on {target_date}: {', '.join(t['title'] for t in on_date)}."
+                if on_date else f"No tasks on {target_date}."
+            )
         else:
             reply = "What date or time range would you like to organize by?"
 
-    todos_all = [dict(t) for t in conn.execute("SELECT * FROM tasks").fetchall()]
-    return reply, todos_all
+    todos = [dict(t) for t in conn.execute("SELECT * FROM tasks").fetchall()]
+    return reply, todos
 
 
 @app.route("/todos", methods=["GET"])
