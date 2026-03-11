@@ -62,20 +62,22 @@ def process_intent(intent, params, result, conn):
 
     if intent == "create_task":
         if result.all_required_params_present:
-            title = get_param(params, "title")
+            title = str(params.get("title", "")).strip()
             date_val = extract_date(params.get("date", ""))
             if title:
                 conn.execute("INSERT INTO tasks (title, date) VALUES (?, ?)", (title, date_val))
                 reply = f"Added: {title}" + (f" on {date_val}" if date_val else "")
+
     elif intent == "edit_task_name":
-        task_name = get_param(params, "task_name")
-        new_name = get_param(params, "new_name")
+        task_name = str(params.get("task_name", "")).strip()
+        new_name = str(params.get("new_name", "")).strip()
         if task_name and new_name:
             conn.execute("UPDATE tasks SET title = ? WHERE title LIKE ?", (new_name, f"%{task_name}%"))
             reply = f"Renamed {task_name} to {new_name}"
+
     elif intent == "edit_task_date":
-        task_name = get_param(params, "task-name")
-        new_date = extract_date(params.get("date-time", ""))
+        task_name = str(params.get("task_name", "")).strip()
+        new_date = extract_date(params.get("date_time", ""))
         if task_name and new_date:
             conn.execute("UPDATE tasks SET date = ? WHERE title LIKE ?", (new_date, f"%{task_name}%"))
             reply = f"Updated {task_name}'s date to {new_date}"
@@ -102,8 +104,7 @@ def process_intent(intent, params, result, conn):
                     reply = f"You have {len(todos)} task{'s' if len(todos) != 1 else ''} from {label}: {names}."
                 else:
                     reply = f"No tasks from {label}."
-                todos_all = [dict(t) for t in conn.execute("SELECT * FROM tasks").fetchall()]
-                return reply, todos_all
+                return reply, todos
 
         elif date_time:
             target_date = extract_date(date_time) or datetime.now().strftime("%B %d, %Y")
@@ -113,17 +114,10 @@ def process_intent(intent, params, result, conn):
                 reply = f"You have {len(todos)} task{'s' if len(todos) != 1 else ''} on {target_date}: {names}."
             else:
                 reply = f"No tasks on {target_date}."
-            todos_all = [dict(t) for t in conn.execute("SELECT * FROM tasks").fetchall()]
-            return reply, todos_all
+            return reply, todos
 
         else:
             reply = "What date or time range would you like to organize by?"
-
-            todos_all = [dict(t) for t in conn.execute("SELECT * FROM tasks").fetchall()]
-            return reply, todos_all
-
-    else:
-        reply = "What date or time range would you like to organize by?"
 
     todos_all = [dict(t) for t in conn.execute("SELECT * FROM tasks").fetchall()]
     return reply, todos_all
