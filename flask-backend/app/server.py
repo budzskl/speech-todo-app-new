@@ -59,25 +59,27 @@ def get_param(params, key):
 
 def process_intent(intent, params, result, conn):
     reply = result.fulfillment_text or f"[intent: {intent}]"
+    filtered_todos = None
+    filter_label = None
 
     if intent == "create_task":
         if result.all_required_params_present:
-            title = str(params.get("title", "")).strip()
+            title = get_param(params, "title")
             date_val = extract_date(params.get("date", ""))
             if title:
                 conn.execute("INSERT INTO tasks (title, date) VALUES (?, ?)", (title, date_val))
                 reply = f"Added: {title}" + (f" on {date_val}" if date_val else "")
 
     elif intent == "edit_task_name":
-        task_name = str(params.get("task_name", "")).strip()
-        new_name = str(params.get("new_name", "")).strip()
+        task_name = get_param(params, "task_name")
+        new_name = get_param(params, "new_name")
         if task_name and new_name:
             conn.execute("UPDATE tasks SET title = ? WHERE title LIKE ?", (new_name, f"%{task_name}%"))
             reply = f"Renamed {task_name} to {new_name}"
 
     elif intent == "edit_task_date":
-        task_name = str(params.get("task_name", "")).strip()
-        new_date = extract_date(params.get("date_time", ""))
+        task_name = get_param(params, "task-name")
+        new_date = extract_date(params.get("date-time", ""))
         if task_name and new_date:
             conn.execute("UPDATE tasks SET date = ? WHERE title LIKE ?", (new_date, f"%{task_name}%"))
             reply = f"Updated {task_name}'s date to {new_date}"
@@ -85,7 +87,9 @@ def process_intent(intent, params, result, conn):
     elif intent == "organize_task":
         date_period = params.get("date-period", "")
         date_time = params.get("date-time", "")
-
+        if hasattr(date_period, "__iter__") and not isinstance(date_period, (str, bytes)) and not hasattr(date_period, "get"):
+            items = list(date_period)
+            date_period = items[0] if items else ""
         if date_period and hasattr(date_period, "get"):
             start = date_period.get("startDate") or date_period.get("startDateTime", "")
             end = date_period.get("endDate") or date_period.get("endDateTime", "")
@@ -95,6 +99,8 @@ def process_intent(intent, params, result, conn):
                 all_tasks = [dict(t) for t in conn.execute("SELECT * FROM tasks WHERE date IS NOT NULL").fetchall()]
                 in_range = [t for t in all_tasks if start_dt <= datetime.strptime(t["date"], "%B %d, %Y") <= end_dt]
                 label = f"{start_dt.strftime('%B %d')} to {end_dt.strftime('%B %d, %Y')}"
+                filtered_todos = in_range
+                filter_label = f"{label.upper()} TASKS"
                 reply = (
                     f"You have {len(in_range)} task{'s' if len(in_range) != 1 else ''} from {label}: {', '.join(t['title'] for t in in_range)}."
                     if in_range else f"No tasks from {label}."
@@ -102,6 +108,8 @@ def process_intent(intent, params, result, conn):
         elif date_time:
             target_date = extract_date(date_time) or datetime.now().strftime("%B %d, %Y")
             on_date = [dict(t) for t in conn.execute("SELECT * FROM tasks WHERE date = ?", (target_date,)).fetchall()]
+            filtered_todos = on_date
+            filter_label = f"{target_date.upper()} TASKS"
             reply = (
                 f"You have {len(on_date)} task{'s' if len(on_date) != 1 else ''} on {target_date}: {', '.join(t['title'] for t in on_date)}."
                 if on_date else f"No tasks on {target_date}."
@@ -110,7 +118,7 @@ def process_intent(intent, params, result, conn):
             reply = "What date or time range would you like to organize by?"
 
     todos = [dict(t) for t in conn.execute("SELECT * FROM tasks").fetchall()]
-    return reply, todos
+    return reply, todos, filtered_todos, filter_label
 
 
 @app.route("/todos", methods=["GET"])
@@ -137,8 +145,12 @@ def message():
         params = dict(result.parameters)
 
         with get_db() as conn:
-            reply, todos = process_intent(intent, params, result, conn)
+            reply, todos, filtered_todos, filter_label = process_intent(intent, params, result, conn)
 
-        return jsonify({"intent": intent, "reply": reply, "todos": todos})
+        response = {"intent": intent, "reply": reply, "todos": todos}
+        if filtered_todos is not None:
+            response["filtered_todos"] = filtered_todos
+            response["filter_label"] = filter_label
+        return jsonify(response)
     except Exception as e:
         return jsonify({"error": str(e)}), 500

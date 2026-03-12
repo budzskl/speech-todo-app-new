@@ -4,6 +4,8 @@ import "react-calendar/dist/Calendar.css";
 
 export default function TodoPage() {
     const [todos, setTodos] = useState([]);
+    const [filteredTodos, setFilteredTodos] = useState(null);
+    const [filterLabel, setFilterLabel] = useState(null);
     const [inputText, setInputText] = useState("");
     const [isListening, setIsListening] = useState(false);
     const [selectedDate, setSelectedDate] = useState(new Date());
@@ -24,6 +26,8 @@ export default function TodoPage() {
             if (!res.ok) return;
             const data = await res.json();
             setTodos(data.todos);
+            setFilteredTodos(data.filtered_todos ?? null);
+            setFilterLabel(data.filter_label ?? null);
             setInputText("");
             window.speechSynthesis.speak(new SpeechSynthesisUtterance(data.reply));
         } catch (e) {
@@ -224,7 +228,27 @@ export default function TodoPage() {
                 {/* Tasks */}
                 <div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                        <span style={{ fontSize: "11px", letterSpacing: "3px", color: "#64748b" }}>ALL TASKS</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                            <span style={{ fontSize: "11px", letterSpacing: "3px", color: "#64748b" }}>
+                                {filterLabel || "ALL TASKS"}
+                            </span>
+                            {filteredTodos && (
+                                <button
+                                    onClick={() => { setFilteredTodos(null); setFilterLabel(null); }}
+                                    style={{
+                                        padding: "2px 8px",
+                                        background: "transparent",
+                                        color: "#64748b",
+                                        border: "1px solid #64748b",
+                                        borderRadius: "3px",
+                                        fontFamily: "'Courier New', Courier, monospace",
+                                        fontSize: "10px",
+                                        letterSpacing: "1px",
+                                        cursor: "pointer",
+                                    }}
+                                >SHOW ALL</button>
+                            )}
+                        </div>
                         <button
                             onClick={clearTodos}
                             style={{
@@ -241,36 +265,39 @@ export default function TodoPage() {
                         >CLEAR ALL</button>
                     </div>
 
-                    {todos.length === 0 ? (
-                        <p style={{ textAlign: "center", color: "#2d3748", padding: "32px 0", fontSize: "12px", letterSpacing: "2px" }}>
-                            NO TASKS
-                        </p>
-                    ) : (
-                        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                            {todos.map((todo, index) => (
-                                <li key={todo.id} style={{
-                                    padding: "12px 14px",
-                                    marginBottom: index === todos.length - 1 ? 0 : "6px",
-                                    background: "#0d1117",
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    alignItems: "center",
-                                    borderRadius: "3px",
-                                    border: "1px solid #1e3a5f",
-                                    borderLeft: "3px solid #dc2626",
-                                }}>
-                                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                                        <span style={{ fontSize: "13px", color: "#e2e8f0" }}>{todo.title}</span>
-                                    </div>
-                                    {todo.date && (
-                                        <span style={{ color: "#64748b", fontSize: "11px", letterSpacing: "1px" }}>
-                                            {new Date(todo.date).toLocaleDateString()}
-                                        </span>
-                                    )}
-                                </li>
-                            ))}
-                        </ul>
-                    )}
+                    {(() => {
+                        const displayTodos = filteredTodos ?? todos;
+                        return displayTodos.length === 0 ? (
+                            <p style={{ textAlign: "center", color: "#2d3748", padding: "32px 0", fontSize: "12px", letterSpacing: "2px" }}>
+                                NO TASKS
+                            </p>
+                        ) : (
+                            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                                {displayTodos.map((todo, index) => (
+                                    <li key={todo.id} style={{
+                                        padding: "12px 14px",
+                                        marginBottom: index === displayTodos.length - 1 ? 0 : "6px",
+                                        background: "#0d1117",
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        alignItems: "center",
+                                        borderRadius: "3px",
+                                        border: "1px solid #1e3a5f",
+                                        borderLeft: "3px solid #dc2626",
+                                    }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                            <span style={{ fontSize: "13px", color: "#e2e8f0" }}>{todo.title}</span>
+                                        </div>
+                                        {todo.date && (
+                                            <span style={{ color: "#64748b", fontSize: "11px", letterSpacing: "1px" }}>
+                                                {todo.date}
+                                            </span>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                        );
+                    })()}
                 </div>
 
             </div>
